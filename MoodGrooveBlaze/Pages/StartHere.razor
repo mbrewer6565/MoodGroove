@@ -1,0 +1,212 @@
+﻿@page "/GetStarted"
+
+@using DataLibrary
+@using MoodGrooveBlaze.Models
+@using Microsoft.Extensions.Configuration;
+@inject IDataAccess _data
+@inject IConfiguration _config
+
+
+
+
+
+<h1 class="text-center">How are you feeling today?</h1>
+
+@if (emotionsDropbox == null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="container">
+        <div class="row">
+            <div class="col-12">
+                <select value="@selectedEmotionId" class="form-control  my-3" @onchange="@GetGenres">
+                    <option value="0" class="bg-success">Select Emotion</option>
+                    @foreach (var e in emotionsDropbox)
+                    {
+
+                        <option value="@e.Id">@e.Name</option>
+
+                    }
+                </select>
+            </div>
+        </div>
+    </div>
+
+    @if (selectedEmotion == true)
+
+    {
+        <h2 class="text-center">Select your genre</h2>
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <select class="form-control  my-3" @onchange="@GetBands">
+                        <option class="bg-success">Select Genre</option>
+                        @foreach (var g in genresDropbox)
+                        {
+
+                            <option value="@g.Id">@g.Name</option>
+
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    }
+    @if (selectedGenre == true)
+    {
+        <h2 class="text-center">Select your band</h2>
+
+        <div class="container">
+            <div class="row">
+                <div class="col-12">
+                    <select class="form-control  my-3" @onchange="@LikeBands">
+                        <option class="bg-success">Select Band</option>
+                        @foreach (var b in bandsDropbox)
+                        {
+
+                            <option value="@b.Id">@b.Name</option>
+
+                        }
+                    </select>
+                </div>
+            </div>
+        </div>
+    }
+
+    @if (selectedBand != null)
+    {
+        <p class="text-center my-3">
+            <iframe width="560" height="315" src="@selectedBand.link" frameborder="0"  allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen webkitallowfullscreen mozallowfullscreen oallowfullscreen msallowfullscreen></iframe>
+
+        </p>
+        <p class="text-center">
+            @selectedBand.info
+        </p>
+    }
+
+    @if (bandSelected == true)
+    {
+        <h4>If you like this band, you might like...</h4>
+
+        <select class="form-control my-3" @onchange="@LikeSelect">
+            <option>Try one of these</option>
+            @if (bandsDropbox != null && bandsDropbox.Count > 0)
+            {
+                foreach (var l in likeBandsDropbox)
+                {
+
+                    <option value="@l.Id">@l.Name</option>
+
+
+                }
+            }
+        </select>
+    }
+
+
+
+    <div class="container">
+        <div class="row">
+            <div class="col text-center">
+                <button class="btn btn-outline-danger my-5" @onclick="Reset">Reset</button>
+            </div>
+        </div>
+    </div>
+
+
+
+
+}
+
+@code {
+    List<EmotionModel> emotionsDropbox;
+    List<GenreModel> genresDropbox;
+    List<BandModel> bandsDropbox;
+    List<BandModel> likeBandsDropbox;
+    BandModel selectedBand;
+    BandModel bandPic;
+    bool selectedEmotion = false;
+    bool selectedGenre = false;
+    bool bandSelected = false;
+    string selectedEmotionId;
+
+
+
+
+
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        string sql = "select * from emotions";
+        emotionsDropbox = _data.LoadData<EmotionModel, dynamic>(sql, new { }, _config.GetConnectionString("default")).Result.OrderBy(x => x.Name).ToList();
+        genresDropbox = new List<GenreModel>();
+        bandsDropbox = new List<BandModel>();
+        likeBandsDropbox = new List<BandModel>();
+
+    }
+
+
+    async void GetGenres(ChangeEventArgs e)
+    {
+
+        string sql = "SELECT genres.Name, genres.Id FROM genresandemotions INNER JOIN emotions ON emotions.Id = genresandemotions.emotionsId INNER JOIN genres on genres.Id = genresandemotions.genresId WHERE emotionsId = " + e.Value;
+        genresDropbox = _data.LoadData<GenreModel, dynamic>(sql, new { }, _config.GetConnectionString("default")).Result;
+        selectedEmotion = true;
+        selectedEmotionId = e.Value.ToString();
+    }
+
+    async Task GetBands(ChangeEventArgs g)
+    {
+
+        string sql = "SELECT bands.Name, bands.Id, bands.link, bands.info, bands.pictureLocation FROM bandsandgenres INNER JOIN bands ON bands.Id = bandsandgenres.bandId INNER JOIN genres ON genres.Id = bandsandgenres.genreId WHERE bandsandgenres.genreId = " + g.Value;
+        bandsDropbox = _data.LoadData<BandModel, dynamic>(sql, new { }, _config.GetConnectionString("default")).Result;
+        selectedGenre = true;
+
+
+
+    }
+
+    async Task LikeBands(ChangeEventArgs l)
+    {
+
+        string sql = "SELECT DISTINCT bands.Name, bands.Id, bands.link, bands.info, bands.pictureLocation FROM bandsandemotions INNER JOIN bands ON bands.Id = bandsandemotions.bandId INNER JOIN emotions ON emotions.Id = bandsandemotions.emotionsId WHERE emotions.Id IN (SELECT emotionsId FROM bandsandemotions WHERE bandId = " + l.Value + ")"; ;
+        likeBandsDropbox = _data.LoadData<BandModel, dynamic>(sql, new { }, _config.GetConnectionString("default")).Result;
+
+        sql = "SELECT bands.info, bands.link, bands.pictureLocation FROM bands WHERE Id = " + l.Value;
+        selectedBand = _data.LoadData<BandModel, dynamic>(sql, new { }, _config.GetConnectionString("default")).Result.FirstOrDefault();
+
+        bandSelected = true;
+
+    }
+
+    async Task LikeSelect(ChangeEventArgs l)
+    {
+        string sql = "SELECT bands.info, bands.link, bands.pictureLocation FROM bands WHERE Id = " + l.Value;
+        selectedBand = _data.LoadData<BandModel, dynamic>(sql, new { }, _config.GetConnectionString("default")).Result.FirstOrDefault();
+    }
+
+
+    async private void Reset(MouseEventArgs e)
+    {
+
+        selectedEmotion = false;
+        selectedGenre = false;
+        bandSelected = false;
+        genresDropbox = new List<GenreModel>();
+        bandsDropbox = new List<BandModel>();
+        selectedEmotionId = "0";
+        selectedBand = null;
+    }
+
+
+
+
+
+
+
+}
+
